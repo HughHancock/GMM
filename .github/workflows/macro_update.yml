@@ -2,13 +2,12 @@ name: Update Macro Monitor
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
-  workflow_dispatch:
+    - cron: "*/10 * * * *"    # every 10 minutes
+  workflow_dispatch:          # allow manual runs
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -23,7 +22,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # Skip outside market hours (PT)
+    # Only run during market hours Pacific Time
     - name: Gate by market hours (PT)
       id: gate
       run: |
@@ -41,8 +40,7 @@ PY
 
     - name: Generate report
       if: steps.gate.outputs.within == 'true'
-      run: |
-        python report.py
+      run: python report.py
 
     - name: Commit and push updates
       if: steps.gate.outputs.within == 'true'
