@@ -1,5 +1,6 @@
 pandas
 pandas_datareader
+yfinance
 matplotlib
 openpyxl
 requests
