@@ -58,10 +58,15 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
         
-        # Create informative commit message
+        # Create timestamp for commit message
         TIMESTAMP=$(TZ=America/New_York date +'%Y-%m-%d %I:%M %p ET')
         
-        git pull origin main --rebase
+        # Stash any local changes first, then pull
+        git stash
+        git pull origin main --rebase --strategy-option=theirs
+        git stash pop || true
+        
+        # Add the generated files
         git add index.html macro_monitor.pdf macro_tracker.xlsx data.json
         git commit -m "📊 Dashboard update: ${TIMESTAMP}" -m "Auto-generated market data update"
         git push origin main
