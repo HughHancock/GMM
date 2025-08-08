@@ -1,4 +1,4 @@
-- name: Install dependencies
+name: Install dependencies
   run: |
     python -m pip install --upgrade pip
     pip install --no-cache-dir \
