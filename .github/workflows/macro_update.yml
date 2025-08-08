@@ -1,8 +1,6 @@
-name: Update Macro Monitor
+name: Update Macro Monitor (Fixed)
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"    # every 10 minutes
   workflow_dispatch:          # allow manual runs
 
 jobs:
@@ -11,6 +9,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0    # Fetch all history for all branches
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -22,37 +22,26 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # Only run during market hours Pacific Time
-    - name: Gate by market hours (PT)
-      id: gate
-      run: |
-        WITHIN=$(python - <<'PY'
-from datetime import datetime, time as dtime
-from zoneinfo import ZoneInfo
-now = datetime.now(ZoneInfo("America/Los_Angeles"))
-is_weekday = now.weekday() < 5
-within = is_weekday and (dtime(6,30) <= now.time() <= dtime(13,0))
-print(str(within).lower())
-PY
-)
-        echo "within=${WITHIN}" >> $GITHUB_OUTPUT
-        echo "Within market hours: ${WITHIN}"
-
     - name: Generate report
-      if: steps.gate.outputs.within == 'true'
-      run: python report.py
+      run: python macro_report_fixed.py
 
     - name: Commit and push updates
-      if: steps.gate.outputs.within == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # Pull latest changes first
+        git pull origin main --rebase
+        
+        # Add the generated files
         git add macro_monitor.pdf macro_tracker.xlsx || true
+        
+        # Check if there are changes to commit
         if ! git diff --cached --quiet; then
-          git commit -m "Auto update macro monitor"
-          git push
+          git commit -m "Auto update macro monitor - $(date +'%Y-%m-%d %H:%M:%S')"
+          git push origin main
         else
           echo "No changes to commit."
         fi
