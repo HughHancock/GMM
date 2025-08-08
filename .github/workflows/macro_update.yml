@@ -2,64 +2,58 @@ name: Update Macro Monitor
 
 on:
   schedule:
-    - cron: "*/10 * * * *"      # every 10 minutes
-  workflow_dispatch:            # allow manual run from the Actions tab
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout
       uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: "3.11"
-        cache: "pip"
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pandas pandas_datareader matplotlib XlsxWriter requests lxml html5lib pillow
+        pip install -r requirements.txt
 
-    # Guard: only run generation during market hours (Mon–Fri, 06:30–13:00 PT)
-    - name: Skip outside market hours (Pacific Time)
+    # Skip outside market hours (PT)
+    - name: Gate by market hours (PT)
       id: gate
       run: |
-        python - <<'PY'
-        from datetime import datetime, time as dtime
-        try:
-            from zoneinfo import ZoneInfo
-        except Exception:
-            from pytz import timezone as ZoneInfo  # fallback, though ZoneInfo is available on GA
-        now = datetime.now(ZoneInfo("America/Los_Angeles"))
-        is_weekday = now.weekday() < 5
-        start = dtime(6,30)
-        end   = dtime(13,0)
-        within = is_weekday and (start <= now.time() <= end)
-        print(f"::notice::Current PT time: {now}. Market window: {within}")
-        print(f"within_market_hours={str(within).lower()}")
-        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"within_market_hours={str(within).lower()}\n")
-        PY
+        WITHIN=$(python - <<'PY'
+from datetime import datetime, time as dtime
+from zoneinfo import ZoneInfo
+now = datetime.now(ZoneInfo("America/Los_Angeles"))
+is_weekday = now.weekday() < 5
+within = is_weekday and (dtime(6,30) <= now.time() <= dtime(13,0))
+print(str(within).lower())
+PY
+)
+        echo "within=${WITHIN}" >> $GITHUB_OUTPUT
+        echo "Within market hours: ${WITHIN}"
 
-    - name: Generate macro report
-      if: steps.gate.outputs.within_market_hours == 'true'
+    - name: Generate report
+      if: steps.gate.outputs.within == 'true'
       run: |
-        python macro_report_full.py
+        python report.py
 
-    - name: Commit and push updated reports
-      if: steps.gate.outputs.within_market_hours == 'true'
+    - name: Commit and push updates
+      if: steps.gate.outputs.within == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config user.name  "github-actions[bot]"
         git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git add macro_monitor_full.pdf global_macro_tracker_full.xlsx || true
+        git add macro_monitor.pdf macro_tracker.xlsx || true
         if ! git diff --cached --quiet; then
-          git commit -m "Automated report update"
+          git commit -m "Auto update macro monitor"
           git push
         else
           echo "No changes to commit."
