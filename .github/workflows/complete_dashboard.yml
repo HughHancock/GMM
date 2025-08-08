@@ -34,7 +34,7 @@ jobs:
     - name: Generate PDF and Excel reports
       run: |
         echo "📊 Generating PDF and Excel reports..."
-        python macro_report_simple.py
+        python macro_report_full.py
         
     - name: Generate HTML dashboard
       run: |
