@@ -1,7 +1,7 @@
 pandas
 pandas_datareader
 matplotlib
-XlsxWriter
+openpyxl
 requests
 lxml
 html5lib
