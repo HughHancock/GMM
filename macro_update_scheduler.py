@@ -1,3 +1,10 @@
+- name: Install dependencies
+  run: |
+    python -m pip install --upgrade pip
+    pip install --no-cache-dir \
+      pandas pandas_datareader matplotlib \
+      openpyxl xlsxwriter lxml html5lib beautifulsoup4
+
 name: Run macro monitor once (manual)
 
 on:
