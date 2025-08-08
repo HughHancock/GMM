@@ -6,6 +6,7 @@ import json
 import base64
 from io import BytesIO
 from datetime import datetime, timedelta
+import pytz
 
 import numpy as np
 import pandas as pd
@@ -13,8 +14,9 @@ import matplotlib.pyplot as plt
 from pandas_datareader import data as web
 
 # Configuration
-END = datetime.now()
-START = datetime(2018, 1, 1)
+ET = pytz.timezone('US/Eastern')
+END = datetime.now(ET)
+START = datetime(2018, 1, 1, tzinfo=ET)
 
 OUT_HTML = "index.html"
 OUT_JSON = "data.json"
@@ -447,7 +449,7 @@ def generate_html_report():
     
     <div class="header">
         <h1>MACRO MONITOR</h1>
-        <div class="timestamp">Data as of: """ + END.strftime('%B %d, %Y at %I:%M %p ET') + """</div>
+        <div class="timestamp">Data as of: """ + END.strftime('%B %d, %Y at %I:%M %p') + """ ET</div>
     </div>
 """
     
