@@ -3,13 +3,10 @@
 
 import warnings
 import json
-import base64
-from io import BytesIO
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from pandas_datareader import data as web
 
 # Configuration
@@ -135,55 +132,8 @@ def compute_returns(s, end_date, diff_mode):
     
     return out
 
-def normalized_100(s):
-    if s.empty: 
-        return s
-    base = s.iloc[0]
-    if base == 0 or pd.isna(base):
-        return pd.Series(index=s.index, dtype=float)
-    return (s / base) * 100.0
-
-def create_mini_chart(s, title, is_normalized=False):
-    """Create a small sparkline chart and return as base64 image."""
-    if s.empty or s.isna().all():
-        return ""
-    
-    fig, ax = plt.subplots(figsize=(3.5, 1.5), dpi=100)
-    
-    if is_normalized:
-        s = normalized_100(s)
-    
-    ax.plot(s.index, s.values, linewidth=1, color='#2E86AB')
-    ax.fill_between(s.index, s.values, alpha=0.1, color='#2E86AB')
-    
-    # Remove all labels and ticks for sparkline effect
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
-    
-    # Add min/max markers
-    if len(s) > 0:
-        max_idx = s.idxmax()
-        min_idx = s.idxmin()
-        ax.plot(max_idx, s[max_idx], 'o', markersize=3, color='#28a745')
-        ax.plot(min_idx, s[min_idx], 'o', markersize=3, color='#dc3545')
-    
-    plt.tight_layout(pad=0)
-    
-    # Convert to base64
-    buffer = BytesIO()
-    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
-    buffer.seek(0)
-    image_base64 = base64.b64encode(buffer.read()).decode()
-    plt.close(fig)
-    
-    return f"data:image/png;base64,{image_base64}"
-
 def generate_html_report():
-    """Generate the HTML dashboard."""
+    """Generate the HTML dashboard that looks like the PDF."""
     print(f"Generating HTML Dashboard...")
     print(f"Fetching data from {START.strftime('%Y-%m-%d')} to {END.strftime('%Y-%m-%d')}")
     
@@ -195,14 +145,14 @@ def generate_html_report():
                 print(f"  Fetching {ident}...")
                 data[ident] = fetch_series(ident)
     
-    # Generate HTML
+    # Generate HTML that looks like the PDF
     html = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="refresh" content="300">
-    <title>Macro Monitor - Live Dashboard</title>
+    <title>Macro Monitor</title>
     <style>
         * {
             margin: 0;
@@ -211,221 +161,196 @@ def generate_html_report():
         }
         
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #0a0e27;
-            color: #e0e0e0;
-            line-height: 1.6;
+            font-family: Arial, Helvetica, sans-serif;
+            background: white;
+            color: #000;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
         
         .header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            padding: 30px;
             text-align: center;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #333;
         }
         
         h1 {
-            font-size: 2.5em;
-            font-weight: 300;
-            letter-spacing: 2px;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
         }
         
-        .last-updated {
-            font-size: 1.1em;
-            opacity: 0.9;
-            color: #B8D4E3;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
+        .timestamp {
+            font-size: 12px;
+            color: #666;
         }
         
         .section {
-            background: #1a1f3a;
-            border-radius: 15px;
-            margin-bottom: 30px;
-            overflow: hidden;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-            border: 1px solid #2a3f5f;
+            margin-bottom: 40px;
+            page-break-inside: avoid;
         }
         
-        .section-header {
-            background: linear-gradient(135deg, #2a3f5f 0%, #1e2936 100%);
-            padding: 20px;
-            font-size: 1.4em;
-            font-weight: 500;
-            border-bottom: 2px solid #3a4f6f;
-            letter-spacing: 1px;
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            background: #f0f0f0;
+            padding: 8px;
+            margin-bottom: 0;
+            border: 1px solid #ccc;
         }
         
-        .data-table {
+        table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 11px;
+            margin-bottom: 20px;
         }
         
-        .data-table th {
-            background: #2a3450;
-            padding: 12px;
+        th {
+            background: #E9EEF6;
+            padding: 6px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ccc;
+            font-size: 10px;
+        }
+        
+        td {
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            text-align: right;
+        }
+        
+        td:first-child {
             text-align: left;
-            font-weight: 600;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #B8D4E3;
-            border-bottom: 2px solid #3a4f6f;
-        }
-        
-        .data-table td {
-            padding: 12px;
-            border-bottom: 1px solid #2a3450;
-            font-size: 0.95em;
-        }
-        
-        .data-table tr:hover {
-            background: #252a45;
-        }
-        
-        .series-name {
             font-weight: 500;
-            color: #A8DADC;
+            background: #fafafa;
         }
         
-        .current-value {
-            font-weight: 600;
-            color: #F1FAEE;
-            font-size: 1.05em;
+        tr:hover {
+            background: #f9f9f9;
         }
         
         .positive {
-            color: #52D681;
-            font-weight: 500;
+            color: #008000;
         }
         
         .negative {
-            color: #FF6B6B;
-            font-weight: 500;
+            color: #cc0000;
         }
         
-        .neutral {
-            color: #95A5C6;
+        .current-value {
+            font-weight: bold;
         }
         
-        .chart-cell {
-            padding: 5px !important;
-            text-align: center;
-        }
-        
-        .mini-chart {
-            height: 40px;
-            opacity: 0.9;
-        }
-        
-        .download-buttons {
+        .nav-buttons {
             position: fixed;
             top: 20px;
             right: 20px;
             display: flex;
             gap: 10px;
-            z-index: 1000;
         }
         
         .btn {
-            padding: 10px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 8px 16px;
+            background: #4CAF50;
             color: white;
             text-decoration: none;
-            border-radius: 25px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            border-radius: 4px;
+            font-size: 12px;
+            border: none;
+            cursor: pointer;
         }
         
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            background: #45a049;
         }
         
-        .auto-update {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: rgba(26, 31, 58, 0.95);
-            padding: 10px 20px;
-            border-radius: 25px;
-            border: 1px solid #3a4f6f;
-            font-size: 0.9em;
+        .btn-secondary {
+            background: #008CBA;
         }
         
-        .pulse {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #52D681;
-            border-radius: 50%;
-            margin-right: 8px;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.1); }
-            100% { opacity: 1; transform: scale(1); }
+        .btn-secondary:hover {
+            background: #007399;
         }
         
         .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ccc;
             text-align: center;
-            padding: 30px;
-            color: #6B7AA1;
-            font-size: 0.9em;
+            font-size: 10px;
+            color: #666;
+        }
+        
+        .auto-refresh {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #f0f0f0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid #ccc;
+        }
+        
+        @media print {
+            .nav-buttons, .auto-refresh {
+                display: none;
+            }
+            .section {
+                page-break-inside: avoid;
+            }
         }
         
         @media (max-width: 768px) {
-            .container { padding: 10px; }
-            .data-table { font-size: 0.85em; }
-            .download-buttons { position: static; margin: 20px; }
-            h1 { font-size: 1.8em; }
+            body {
+                padding: 10px;
+            }
+            table {
+                font-size: 9px;
+            }
+            .nav-buttons {
+                position: static;
+                margin-bottom: 20px;
+                justify-content: center;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="download-buttons">
-        <a href="macro_monitor.pdf" class="btn" download>📄 PDF</a>
-        <a href="macro_tracker.xlsx" class="btn" download>📊 Excel</a>
+    <div class="nav-buttons">
+        <a href="macro_monitor.pdf" class="btn" download>📄 Download PDF</a>
+        <a href="macro_tracker.xlsx" class="btn btn-secondary" download>📊 Download Excel</a>
     </div>
     
     <div class="header">
-        <h1>📊 MACRO MONITOR</h1>
-        <div class="last-updated">Last Updated: """ + END.strftime('%B %d, %Y at %I:%M %p ET') + """</div>
+        <h1>MACRO MONITOR</h1>
+        <div class="timestamp">Data as of: """ + END.strftime('%B %d, %Y at %I:%M %p ET') + """</div>
     </div>
-    
-    <div class="container">
 """
     
-    # Generate sections
+    # Generate sections that look like the PDF
     for section_name, items in SECTIONS:
         html += f"""
-        <div class="section">
-            <div class="section-header">{section_name}</div>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width: 20%">Series</th>
-                        <th style="width: 10%">Current</th>
-                        <th style="width: 8%">YTD</th>
-                        <th style="width: 8%">1M</th>
-                        <th style="width: 8%">3M</th>
-                        <th style="width: 8%">1Y</th>
-                        <th style="width: 8%">3Y</th>
-                        <th style="width: 8%">5Y</th>
-                        <th style="width: 11%">Trend</th>
-                        <th style="width: 11%">Normalized</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="section">
+        <div class="section-title">{section_name}</div>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%">Series</th>
+                    <th style="width: 11%">Current</th>
+                    <th style="width: 10.5%">YTD</th>
+                    <th style="width: 10.5%">1M</th>
+                    <th style="width: 10.5%">3M</th>
+                    <th style="width: 10.5%">1Y</th>
+                    <th style="width: 10.5%">3Y</th>
+                    <th style="width: 10.5%">5Y</th>
+                </tr>
+            </thead>
+            <tbody>
 """
         
         for ident, name in items.items():
@@ -433,10 +358,10 @@ def generate_html_report():
             
             if s.empty:
                 html += f"""
-                    <tr>
-                        <td class="series-name">{name}</td>
-                        <td colspan="10" style="text-align: center; color: #6B7AA1;">No data available</td>
-                    </tr>
+                <tr>
+                    <td>{name}</td>
+                    <td colspan="7" style="text-align: center; color: #999;">No data</td>
+                </tr>
 """
                 continue
             
@@ -447,77 +372,76 @@ def generate_html_report():
             ret = compute_returns(s, end_date, diff_mode)
             current_val = s.iloc[-1]
             
-            # Format values
+            # Format values - exactly like the PDF
             def format_val(val, is_diff=False):
                 if pd.isna(val):
-                    return '<span class="neutral">-</span>'
+                    return ""
                 if is_diff:
-                    # For yields/spreads, just show the difference
-                    color = "positive" if val > 0 else "negative" if val < 0 else "neutral"
-                    return f'<span class="{color}">{val:+.2f}</span>'
+                    # For yields/spreads
+                    if val > 0:
+                        return f'<span class="positive">{val:.2f}</span>'
+                    elif val < 0:
+                        return f'<span class="negative">{val:.2f}</span>'
+                    else:
+                        return f'{val:.2f}'
                 else:
-                    # For returns, show percentage
-                    color = "positive" if val > 0 else "negative" if val < 0 else "neutral"
-                    return f'<span class="{color}">{val:+.1f}%</span>'
-            
-            # Generate mini charts
-            recent_data = s.last('2Y')  # Last 2 years for sparkline
-            trend_chart = create_mini_chart(recent_data, name, False)
-            norm_chart = create_mini_chart(recent_data, name, True)
+                    # For returns (percentages)
+                    if val > 0:
+                        return f'<span class="positive">{val:.2f}</span>'
+                    elif val < 0:
+                        return f'<span class="negative">{val:.2f}</span>'
+                    else:
+                        return f'{val:.2f}'
             
             html += f"""
-                    <tr>
-                        <td class="series-name">{name}</td>
-                        <td class="current-value">{current_val:.2f}</td>
-                        <td>{format_val(ret['YTD'], diff_mode)}</td>
-                        <td>{format_val(ret['1M'], diff_mode)}</td>
-                        <td>{format_val(ret['3M'], diff_mode)}</td>
-                        <td>{format_val(ret['1Y'], diff_mode)}</td>
-                        <td>{format_val(ret['3Y'], diff_mode)}</td>
-                        <td>{format_val(ret['5Y'], diff_mode)}</td>
-                        <td class="chart-cell"><img src="{trend_chart}" class="mini-chart" alt="trend"></td>
-                        <td class="chart-cell"><img src="{norm_chart}" class="mini-chart" alt="normalized"></td>
-                    </tr>
+                <tr>
+                    <td>{name}</td>
+                    <td class="current-value">{current_val:.2f}</td>
+                    <td>{format_val(ret['YTD'], diff_mode)}</td>
+                    <td>{format_val(ret['1M'], diff_mode)}</td>
+                    <td>{format_val(ret['3M'], diff_mode)}</td>
+                    <td>{format_val(ret['1Y'], diff_mode)}</td>
+                    <td>{format_val(ret['3Y'], diff_mode)}</td>
+                    <td>{format_val(ret['5Y'], diff_mode)}</td>
+                </tr>
 """
         
         html += """
-                </tbody>
-            </table>
-        </div>
+            </tbody>
+        </table>
+    </div>
 """
     
     html += """
-    </div>
-    
-    <div class="auto-update">
-        <span class="pulse"></span>
-        Auto-refreshes every 5 minutes
-    </div>
-    
     <div class="footer">
-        <p>Data sources: FRED (Federal Reserve) & Stooq | Updates 5x daily during market hours</p>
-        <p>Note: FRED data may have 1-2 day lag</p>
+        <p>Data sources: FRED (Federal Reserve Economic Data) & Stooq</p>
+        <p>Note: FRED data may have 1-2 day lag | Updates 5x daily during market hours</p>
+    </div>
+    
+    <div class="auto-refresh">
+        <span id="refresh-text">Auto-refresh in <span id="countdown">300</span>s</span>
     </div>
     
     <script>
-        // Add countdown timer
+        // Countdown timer
         let seconds = 300;
+        const countdownEl = document.getElementById('countdown');
+        
         setInterval(() => {
             seconds--;
+            if (countdownEl) {
+                countdownEl.textContent = seconds;
+            }
             if (seconds <= 0) {
                 location.reload();
             }
         }, 1000);
         
-        // Fade in animation
-        document.querySelectorAll('.section').forEach((el, i) => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(20px)';
-            setTimeout(() => {
-                el.style.transition = 'all 0.5s ease';
-                el.style.opacity = '1';
-                el.style.transform = 'translateY(0)';
-            }, i * 100);
+        // Highlight rows on hover
+        document.querySelectorAll('tr').forEach(row => {
+            row.addEventListener('mouseenter', function() {
+                this.style.transition = 'background-color 0.2s';
+            });
         });
     </script>
 </body>
@@ -528,7 +452,7 @@ def generate_html_report():
     with open(OUT_HTML, 'w') as f:
         f.write(html)
     
-    # Save data as JSON for potential API use
+    # Save data as JSON
     json_data = {
         "updated": END.isoformat(),
         "sections": {}
