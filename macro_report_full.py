@@ -10,6 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 from pandas_datareader import data as web
+import yfinance as yf
 
 # ---------- Config ----------
 # Update end date to ensure we get the most recent data
@@ -28,45 +29,76 @@ YIELD_OR_SPREAD = {
 
 SECTIONS: Tuple[Tuple[str, Dict[str,str]], ...] = (
     ("Major Indices", {
-        "FRED:SP500": "S&P 500",
-        "STQ:SPY": "SPY (ETF)",
-        "STQ:IWM": "Russell 2000 (IWM)",
+        "YF:^GSPC": "S&P 500",
+        "YF:SPY": "SPY (ETF)",
+        "YF:IWM": "Russell 2000 (IWM)",
+        "YF:QQQ": "Nasdaq 100 (QQQ)",
+        "YF:DIA": "Dow Jones (DIA)",
     }),
     ("Sectors (SPDR)", {
-        "STQ:XLB":"Materials","STQ:XLE":"Energy","STQ:XLF":"Financials",
-        "STQ:XLI":"Industrials","STQ:XLK":"Technology","STQ:XLP":"Staples",
-        "STQ:XLU":"Utilities","STQ:XLV":"Health Care","STQ:XLY":"Discretionary",
-        "STQ:XLC":"Comm Services",
+        "YF:XLB":"Materials","YF:XLE":"Energy","YF:XLF":"Financials",
+        "YF:XLI":"Industrials","YF:XLK":"Technology","YF:XLP":"Staples",
+        "YF:XLU":"Utilities","YF:XLV":"Health Care","YF:XLY":"Discretionary",
+        "YF:XLC":"Comm Services","YF:XLRE":"Real Estate",
     }),
     ("Volatility & Credit", {
-        "FRED:VIXCLS":"VIX","FRED:BAMLH0A0HYM2":"HY OAS",
-        "FRED:AAA":"Moody's AAA","FRED:BAA":"Moody's BAA",
+        "YF:^VIX":"VIX",
+        "FRED:BAMLH0A0HYM2":"HY OAS",
+        "FRED:AAA":"Moody's AAA",
+        "FRED:BAA":"Moody's BAA",
     }),
     ("Commodities & Energy", {
-        "FRED:DCOILWTICO":"WTI Crude","FRED:DCOILBRENTEU":"Brent",
-        "FRED:DHHNGSP":"Nat Gas","STQ:XOP":"Oil & Gas E&P","STQ:OIH":"Oil Services",
+        "YF:CL=F":"WTI Crude",
+        "YF:BZ=F":"Brent Crude",
+        "YF:NG=F":"Natural Gas",
+        "YF:GC=F":"Gold",
+        "YF:SI=F":"Silver",
+        "YF:XOP":"Oil & Gas E&P",
+        "YF:OIH":"Oil Services",
     }),
     ("Rates & Curve", {
-        "FRED:FEDFUNDS":"Fed Funds","FRED:TB3MS":"3M T-Bill","FRED:GS2":"2-Yr UST",
-        "FRED:GS5":"5-Yr UST","FRED:GS10":"10-Yr UST","FRED:GS30":"30-Yr UST",
+        "FRED:FEDFUNDS":"Fed Funds",
+        "FRED:TB3MS":"3M T-Bill",
+        "YF:^IRX":"13W T-Bill (x10)",
+        "YF:^FVX":"5-Yr Treasury",
+        "YF:^TNX":"10-Yr Treasury",
+        "YF:^TYX":"30-Yr Treasury",
     }),
-    ("Real Estate", {
-        "STQ:VNQ":"US REITs (VNQ)","STQ:IYR":"US Real Estate","FRED:MORTGAGE30US":"30-Yr Mortgage",
+    ("Real Estate & International", {
+        "YF:VNQ":"US REITs (VNQ)",
+        "YF:IYR":"US Real Estate",
+        "YF:EFA":"Intl Developed (EFA)",
+        "YF:EEM":"Emerging Markets",
+        "FRED:MORTGAGE30US":"30-Yr Mortgage",
     }),
 )
 
 # ---------- Helpers ----------
 
 def fetch_series(ident: str, start=START, end=END) -> pd.Series:
-    """Fetch a single series from FRED or Stooq and return as a clean Series."""
+    """Fetch a single series from Yahoo Finance, FRED, or Stooq."""
     src, code = ident.split(":", 1)
     try:
-        if src == "FRED":
+        if src == "YF":
+            # Use yfinance for real-time data
+            ticker = yf.Ticker(code)
+            df = ticker.history(start=start, end=end)
+            if df.empty:
+                # Fallback to download method
+                df = yf.download(code, start=start, end=end, progress=False)
+            if not df.empty:
+                s = df["Close"]
+                # For treasury yields from Yahoo, they're already in percent
+                if code in ["^IRX", "^FVX", "^TNX", "^TYX"]:
+                    s = s  # Keep as is, they're already yields in percent
+            else:
+                s = pd.Series(dtype=float)
+        elif src == "FRED":
             # For FRED, explicitly set end date to today
             df = web.DataReader(code, "fred", start, end)
             s = df.iloc[:,0]
         elif src == "STQ":
-            # For Stooq, also use current date
+            # For Stooq
             df = web.DataReader(code, "stooq", start, end)
             s = df["Close"].sort_index()
         else:
@@ -126,7 +158,11 @@ def draw_section(pdf, title: str, items: Dict[str,str], data_map: Dict[str,pd.Se
         if s.empty:
             rows.append((name, np.nan, *[np.nan]*7))
             continue
-        diff_mode = ident.split(":")[1] in YIELD_OR_SPREAD
+        
+        # Check if this should use diff mode
+        code = ident.split(":")[1]
+        diff_mode = code in YIELD_OR_SPREAD or code in ["^IRX", "^FVX", "^TNX", "^TYX"]
+        
         end_date = s.index[-1]
         ret = compute_returns(s, end_date, diff_mode)
         rows.append((name, s.iloc[-1], ret["YTD"], ret["1M"], ret["3M"], ret["1Y"], ret["3Y"], ret["5Y"], ret["10Y"]))
@@ -201,15 +237,16 @@ def draw_section(pdf, title: str, items: Dict[str,str], data_map: Dict[str,pd.Se
 
         # Plot level (right)
         ax2.plot(s.index, s.values, linewidth=0.8)
-        is_yield = ident.split(':')[1] in YIELD_OR_SPREAD
-        ax2.set_title(f"{name} - {'Level/Spread' if is_yield else 'Level'}", fontsize=8, pad=3)
+        code = ident.split(':')[1]
+        is_yield = code in YIELD_OR_SPREAD or code in ["^IRX", "^FVX", "^TNX", "^TYX"]
+        ax2.set_title(f"{name} - {'Yield (%)' if is_yield else 'Level'}", fontsize=8, pad=3)
         ax2.grid(True, alpha=0.25, linewidth=0.5)
         ax2.tick_params(labelsize=7)
         if not s.empty:
             ax2.set_xlim(s.index.min(), s.index.max())
 
     # Add data date at bottom
-    fig.text(0.99, 0.01, f"Data as of: {END.strftime('%Y-%m-%d')}", 
+    fig.text(0.99, 0.01, f"Data as of: {END.strftime('%Y-%m-%d %H:%M')}", 
              ha='right', va='bottom', fontsize=8, style='italic')
 
     pdf.savefig(fig, bbox_inches="tight")
@@ -219,7 +256,7 @@ def draw_section(pdf, title: str, items: Dict[str,str], data_map: Dict[str,pd.Se
 def main():
     from matplotlib.backends.backend_pdf import PdfPages
     
-    print(f"Fetching data from {START.strftime('%Y-%m-%d')} to {END.strftime('%Y-%m-%d')}...")
+    print(f"Fetching real-time data from {START.strftime('%Y-%m-%d')} to {END.strftime('%Y-%m-%d %H:%M')}...")
 
     # Fetch all data first
     data = {}
@@ -230,7 +267,8 @@ def main():
                 data[ident] = fetch_series(ident)
                 if not data[ident].empty:
                     last_date = data[ident].index[-1]
-                    print(f"    -> Got data through {last_date.strftime('%Y-%m-%d')}")
+                    last_value = data[ident].iloc[-1]
+                    print(f"    -> Latest: {last_value:.2f} on {last_date.strftime('%Y-%m-%d')}")
 
     tables = []
     with PdfPages(OUT_PDF) as pdf:
@@ -248,12 +286,12 @@ def main():
         for ident, s in data.items():
             if s.empty: 
                 continue
-            sheet_name = ident.replace(":", "_")[:31]
+            sheet_name = ident.replace(":", "_").replace("^", "")[:31]
             df = s.to_frame(name=ident)
             df.to_excel(writer, sheet_name=sheet_name)
 
     print(f"✅ Wrote {OUT_PDF} and {OUT_XLSX}")
-    print(f"📊 Generated report with data through {END.strftime('%Y-%m-%d')}")
+    print(f"📊 Generated report with real-time data through {END.strftime('%Y-%m-%d %H:%M')}")
 
 if __name__ == "__main__":
     warnings.simplefilter("ignore", category=UserWarning)
