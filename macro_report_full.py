@@ -125,7 +125,6 @@ def compute_returns(s: pd.Series, end_date: datetime, diff_mode: bool) -> dict:
         "1Y": end_date - timedelta(days=365),
         "3Y": end_date - timedelta(days=3*365),
         "5Y": end_date - timedelta(days=5*365),
-        "10Y": end_date - timedelta(days=10*365),
     }
     
     out = {}
@@ -157,7 +156,7 @@ def draw_section(pdf, title: str, items: Dict[str,str], data_map: Dict[str,pd.Se
     for ident, name in items.items():
         s = data_map.get(ident, pd.Series(dtype=float))
         if s.empty:
-            rows.append((name, np.nan, *[np.nan]*7))
+            rows.append((name, np.nan, *[np.nan]*6))
             continue
         
         # Check if this should use diff mode (for yields/spreads)
@@ -169,9 +168,9 @@ def draw_section(pdf, title: str, items: Dict[str,str], data_map: Dict[str,pd.Se
         current_val = s.iloc[-1] if not s.empty else np.nan
         
         rows.append((name, current_val, ret["YTD"], ret["1M"], ret["3M"], 
-                    ret["1Y"], ret["3Y"], ret["5Y"], ret["10Y"]))
+                    ret["1Y"], ret["3Y"], ret["5Y"]))
 
-    cols = ["Series", "Current", "YTD", "1M", "3M", "1Y", "3Y", "5Y", "10Y"]
+    cols = ["Series", "Current", "YTD", "1M", "3M", "1Y", "3Y", "5Y"]
     tab = pd.DataFrame(rows, columns=cols)
 
     # Create figure
@@ -207,7 +206,7 @@ def draw_section(pdf, title: str, items: Dict[str,str], data_map: Dict[str,pd.Se
         cellLoc="center",
         loc="center",
         colColours=["#E9EEF6"]*len(cols),
-        colWidths=[0.15] + [0.106]*8
+        colWidths=[0.15] + [0.121]*7
     )
     table.auto_set_font_size(False)
     table.set_fontsize(8)
