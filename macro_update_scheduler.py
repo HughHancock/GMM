@@ -1,103 +1,45 @@
-"""
-macro_update_scheduler.py
-=================================
+name: Run macro monitor once (manual)
 
-This script automates the generation of the macro monitor report during
-U.S. market trading hours.  When run, it continuously checks the
-current time in the user's local timezone (America/Los_Angeles) and,
-if the time falls within regular trading hours (Monday through Friday,
-6:30 AM to 1:00 PM Pacific Time), it regenerates the macro report and
-Excel workbook every ten minutes.  Outside of trading hours the
-script sleeps without generating reports.
+on:
+  workflow_dispatch:  # adds a "Run workflow" button
 
-Usage
------
+permissions:
+  contents: write     # needed so the job can push the PDF/XLSX back
 
-Run this script in a Python environment that has the same
-dependencies as `macro_report_full.py`.  For example:
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-```
-python macro_update_scheduler.py
-```
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-Notes
------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-* This script calls `macro_report_full.py` as a subprocess on each
-  iteration.  Ensure that the report script is in the same directory
-  or adjust the path accordingly.
-* The schedule uses the local timezone to determine trading hours.
-* If you wish to run the script as a background service or cron job,
-  wrap it in appropriate process management (e.g., systemd, supervisord,
-  or a cron entry that launches at system boot).
-* The generated report files (PDF and Excel) will be overwritten on
-  each run.
-"""
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir \
+            pandas pandas_datareader matplotlib \
+            openpyxl lxml html5lib beautifulsoup4
 
-import subprocess
-import time
-from datetime import datetime, time as dtime
-try:
-    # Python 3.9+ standard library for timezone handling
-    from zoneinfo import ZoneInfo
-except ImportError:
-    # Fall back to pytz if zoneinfo is unavailable
-    from pytz import timezone as ZoneInfo
+      # Option 1 (recommended for a quick one-shot):
+      - name: Generate macro report (one-shot)
+        run: python macro_report_full.py
 
+      # --- If you prefer to use your scheduler in "run once" mode, 
+      # --- replace the step above with this one (and keep the flag):
+      # - name: Generate via scheduler (one-shot/force)
+      #   run: python macro_update_scheduler.py --once --force
 
-def within_market_hours(now: datetime) -> bool:
-    """Return True if the given datetime falls within U.S. market hours.
-
-    Market hours are defined as Monday through Friday from 6:30 AM to
-    1:00 PM (inclusive) in the user's local timezone (Pacific Time).
-
-    Parameters
-    ----------
-    now : datetime
-        A timezone-aware datetime object representing the current
-        time.
-
-    Returns
-    -------
-    bool
-        True if now is a weekday and the time is within trading hours;
-        otherwise False.
-    """
-    # Monday=0, Sunday=6
-    if now.weekday() >= 5:
-        return False
-    start = dtime(6, 30)  # 6:30 AM
-    end = dtime(13, 0)    # 1:00 PM
-    return start <= now.time() <= end
-
-
-def run_report():
-    """Invoke the macro report script to generate updated files."""
-    print(f"[{datetime.now()}] Running macro report generation...")
-    result = subprocess.run(['python', 'macro_report_full.py'])
-    if result.returncode != 0:
-        print(f"[{datetime.now()}] Report generation failed with status {result.returncode}")
-    else:
-        print(f"[{datetime.now()}] Report generation completed.")
-
-
-def main():
-    # Use the America/Los_Angeles timezone
-    try:
-        tz = ZoneInfo('America/Los_Angeles')
-    except Exception:
-        # If zoneinfo fails, fallback to using pytz via ZoneInfo alias
-        tz = ZoneInfo('America/Los_Angeles')
-    print("Starting macro update scheduler... Press Ctrl+C to stop.")
-    while True:
-        now = datetime.now(tz)
-        if within_market_hours(now):
-            run_report()
-        else:
-            print(f"[{now}] Outside market hours; skipping report generation.")
-        # Sleep for 10 minutes
-        time.sleep(600)
-
-
-if __name__ == '__main__':
-    main()
+      - name: Commit and push updated reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add macro_monitor_full.pdf global_macro_tracker_full.xlsx || true
+          git commit -m "Run-once: update reports" || echo "Nothing to commit"
+          git push
