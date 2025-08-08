@@ -3,10 +3,13 @@
 
 import warnings
 import json
+import base64
+from io import BytesIO
 from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from pandas_datareader import data as web
 
 # Configuration
@@ -132,6 +135,54 @@ def compute_returns(s, end_date, diff_mode):
     
     return out
 
+def normalized_100(s):
+    if s.empty: 
+        return s
+    base = s.iloc[0]
+    if base == 0 or pd.isna(base):
+        return pd.Series(index=s.index, dtype=float)
+    return (s / base) * 100.0
+
+def create_mini_chart(s, title, is_normalized=False):
+    """Create a small sparkline chart and return as base64 image."""
+    if s.empty or s.isna().all():
+        return ""
+    
+    fig, ax = plt.subplots(figsize=(2.5, 0.8), dpi=100)
+    
+    if is_normalized:
+        s = normalized_100(s)
+    
+    # Simple line chart with no decorations
+    ax.plot(s.index, s.values, linewidth=1, color='#2563eb')
+    ax.fill_between(s.index, s.values, alpha=0.1, color='#2563eb')
+    
+    # Remove all labels and ticks for sparkline effect
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    
+    # Add min/max dots
+    if len(s) > 0:
+        max_idx = s.idxmax()
+        min_idx = s.idxmin()
+        ax.plot(max_idx, s[max_idx], 'o', markersize=2, color='#16a34a')
+        ax.plot(min_idx, s[min_idx], 'o', markersize=2, color='#dc2626')
+    
+    plt.tight_layout(pad=0)
+    
+    # Convert to base64
+    buffer = BytesIO()
+    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
+    buffer.seek(0)
+    image_base64 = base64.b64encode(buffer.read()).decode()
+    plt.close(fig)
+    
+    return f"data:image/png;base64,{image_base64}"
+
 def generate_html_report():
     """Generate the HTML dashboard that looks like the PDF."""
     print(f"Generating HTML Dashboard...")
@@ -245,6 +296,16 @@ def generate_html_report():
             font-weight: bold;
         }
         
+        .chart-cell {
+            padding: 2px !important;
+            text-align: center;
+        }
+        
+        .mini-chart {
+            height: 25px;
+            vertical-align: middle;
+        }
+        
         .nav-buttons {
             position: fixed;
             top: 20px;
@@ -332,7 +393,7 @@ def generate_html_report():
     </div>
 """
     
-    # Generate sections that look like the PDF
+    # Generate sections that look like the PDF with charts
     for section_name, items in SECTIONS:
         html += f"""
     <div class="section">
@@ -340,14 +401,16 @@ def generate_html_report():
         <table>
             <thead>
                 <tr>
-                    <th style="width: 25%">Series</th>
-                    <th style="width: 11%">Current</th>
-                    <th style="width: 10.5%">YTD</th>
-                    <th style="width: 10.5%">1M</th>
-                    <th style="width: 10.5%">3M</th>
-                    <th style="width: 10.5%">1Y</th>
-                    <th style="width: 10.5%">3Y</th>
-                    <th style="width: 10.5%">5Y</th>
+                    <th style="width: 20%">Series</th>
+                    <th style="width: 10%">Current</th>
+                    <th style="width: 8%">YTD</th>
+                    <th style="width: 8%">1M</th>
+                    <th style="width: 8%">3M</th>
+                    <th style="width: 8%">1Y</th>
+                    <th style="width: 8%">3Y</th>
+                    <th style="width: 8%">5Y</th>
+                    <th style="width: 11%">Trend (2Y)</th>
+                    <th style="width: 11%">Normalized</th>
                 </tr>
             </thead>
             <tbody>
@@ -360,7 +423,7 @@ def generate_html_report():
                 html += f"""
                 <tr>
                     <td>{name}</td>
-                    <td colspan="7" style="text-align: center; color: #999;">No data</td>
+                    <td colspan="9" style="text-align: center; color: #999;">No data</td>
                 </tr>
 """
                 continue
@@ -371,6 +434,11 @@ def generate_html_report():
             end_date = s.index[-1]
             ret = compute_returns(s, end_date, diff_mode)
             current_val = s.iloc[-1]
+            
+            # Generate mini charts
+            recent_data = s.last('2Y')  # Last 2 years for sparkline
+            trend_chart = create_mini_chart(recent_data, name, False)
+            norm_chart = create_mini_chart(recent_data, name, True)
             
             # Format values - exactly like the PDF
             def format_val(val, is_diff=False):
@@ -403,6 +471,8 @@ def generate_html_report():
                     <td>{format_val(ret['1Y'], diff_mode)}</td>
                     <td>{format_val(ret['3Y'], diff_mode)}</td>
                     <td>{format_val(ret['5Y'], diff_mode)}</td>
+                    <td class="chart-cell">{"<img src='" + trend_chart + "' class='mini-chart' alt='trend'>" if trend_chart else ""}</td>
+                    <td class="chart-cell">{"<img src='" + norm_chart + "' class='mini-chart' alt='normalized'>" if norm_chart else ""}</td>
                 </tr>
 """
         
