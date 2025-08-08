@@ -143,40 +143,61 @@ def normalized_100(s):
         return pd.Series(index=s.index, dtype=float)
     return (s / base) * 100.0
 
-def create_mini_chart(s, title, is_normalized=False):
-    """Create a small sparkline chart and return as base64 image."""
+def create_chart(s, title, is_normalized=False, is_yield=False):
+    """Create a chart similar to the PDF style."""
     if s.empty or s.isna().all():
         return ""
     
-    fig, ax = plt.subplots(figsize=(2.5, 0.8), dpi=100)
+    fig, ax = plt.subplots(figsize=(5, 2), dpi=100)
     
     if is_normalized:
-        s = normalized_100(s)
+        s_plot = normalized_100(s)
+        title_suffix = " - Normalized (2018=100)"
+    else:
+        s_plot = s
+        title_suffix = f" - {'Yield (%)' if is_yield else 'Level'}"
     
-    # Simple line chart with no decorations
-    ax.plot(s.index, s.values, linewidth=1, color='#2563eb')
-    ax.fill_between(s.index, s.values, alpha=0.1, color='#2563eb')
+    # Plot with style similar to PDF
+    ax.plot(s_plot.index, s_plot.values, linewidth=1, color='#1e40af')
+    ax.fill_between(s_plot.index, s_plot.values, alpha=0.1, color='#1e40af')
     
-    # Remove all labels and ticks for sparkline effect
-    ax.set_xticks([])
-    ax.set_yticks([])
+    # Add grid
+    ax.grid(True, alpha=0.3, linewidth=0.5)
+    
+    # Style the plot
+    ax.set_title(f"{title}{title_suffix}", fontsize=9, pad=5)
+    ax.tick_params(labelsize=7)
+    
+    # Format x-axis to show years
+    years = pd.date_range(start=s_plot.index[0], end=s_plot.index[-1], freq='YS')
+    ax.set_xticks(years)
+    ax.set_xticklabels([d.strftime('%Y') for d in years], fontsize=7)
+    
+    # Add min/max markers
+    if len(s_plot) > 0:
+        max_idx = s_plot.idxmax()
+        min_idx = s_plot.idxmin()
+        ax.plot(max_idx, s_plot[max_idx], '^', markersize=5, color='#16a34a')
+        ax.plot(min_idx, s_plot[min_idx], 'v', markersize=5, color='#dc2626')
+        
+        # Add current value annotation
+        current_val = s_plot.iloc[-1]
+        ax.annotate(f'{current_val:.1f}', 
+                   xy=(s_plot.index[-1], current_val),
+                   xytext=(5, 0), 
+                   textcoords='offset points',
+                   fontsize=7,
+                   bbox=dict(boxstyle='round,pad=0.3', fc='yellow', alpha=0.3))
+    
+    # Remove top and right spines
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.spines['bottom'].set_visible(False)
-    ax.spines['left'].set_visible(False)
     
-    # Add min/max dots
-    if len(s) > 0:
-        max_idx = s.idxmax()
-        min_idx = s.idxmin()
-        ax.plot(max_idx, s[max_idx], 'o', markersize=2, color='#16a34a')
-        ax.plot(min_idx, s[min_idx], 'o', markersize=2, color='#dc2626')
-    
-    plt.tight_layout(pad=0)
+    plt.tight_layout()
     
     # Convert to base64
     buffer = BytesIO()
-    plt.savefig(buffer, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
+    plt.savefig(buffer, format='png', bbox_inches='tight', transparent=False, facecolor='white')
     buffer.seek(0)
     image_base64 = base64.b64encode(buffer.read()).decode()
     plt.close(fig)
@@ -216,7 +237,7 @@ def generate_html_report():
             background: white;
             color: #000;
             padding: 20px;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         
@@ -239,7 +260,7 @@ def generate_html_report():
         }
         
         .section {
-            margin-bottom: 40px;
+            margin-bottom: 50px;
             page-break-inside: avoid;
         }
         
@@ -256,7 +277,7 @@ def generate_html_report():
             width: 100%;
             border-collapse: collapse;
             font-size: 11px;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
         }
         
         th {
@@ -296,14 +317,44 @@ def generate_html_report():
             font-weight: bold;
         }
         
-        .chart-cell {
-            padding: 2px !important;
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            padding: 15px;
+            background: #fafafa;
+            border: 1px solid #ddd;
+            border-top: none;
+            margin-bottom: 20px;
+        }
+        
+        .chart-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        
+        .chart-wrapper {
             text-align: center;
         }
         
-        .mini-chart {
-            height: 25px;
-            vertical-align: middle;
+        .chart-wrapper img {
+            width: 100%;
+            max-width: 350px;
+            height: auto;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .series-label {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 5px;
+            color: #333;
+            text-align: center;
         }
         
         .nav-buttons {
@@ -312,6 +363,7 @@ def generate_html_report():
             right: 20px;
             display: flex;
             gap: 10px;
+            z-index: 1000;
         }
         
         .btn {
@@ -373,6 +425,12 @@ def generate_html_report():
             table {
                 font-size: 9px;
             }
+            .charts-container {
+                grid-template-columns: 1fr;
+            }
+            .chart-pair {
+                grid-template-columns: 1fr;
+            }
             .nav-buttons {
                 position: static;
                 margin-bottom: 20px;
@@ -393,7 +451,7 @@ def generate_html_report():
     </div>
 """
     
-    # Generate sections that look like the PDF with charts
+    # Generate sections with prominent charts like the PDF
     for section_name, items in SECTIONS:
         html += f"""
     <div class="section">
@@ -401,21 +459,20 @@ def generate_html_report():
         <table>
             <thead>
                 <tr>
-                    <th style="width: 20%">Series</th>
-                    <th style="width: 10%">Current</th>
-                    <th style="width: 8%">YTD</th>
-                    <th style="width: 8%">1M</th>
-                    <th style="width: 8%">3M</th>
-                    <th style="width: 8%">1Y</th>
-                    <th style="width: 8%">3Y</th>
-                    <th style="width: 8%">5Y</th>
-                    <th style="width: 11%">Trend (2Y)</th>
-                    <th style="width: 11%">Normalized</th>
+                    <th style="width: 25%">Series</th>
+                    <th style="width: 12.5%">Current</th>
+                    <th style="width: 10.5%">YTD</th>
+                    <th style="width: 10.5%">1M</th>
+                    <th style="width: 10.5%">3M</th>
+                    <th style="width: 10.5%">1Y</th>
+                    <th style="width: 10.5%">3Y</th>
+                    <th style="width: 10.5%">5Y</th>
                 </tr>
             </thead>
             <tbody>
 """
         
+        # First pass: generate table rows
         for ident, name in items.items():
             s = data.get(ident, pd.Series(dtype=float))
             
@@ -423,7 +480,7 @@ def generate_html_report():
                 html += f"""
                 <tr>
                     <td>{name}</td>
-                    <td colspan="9" style="text-align: center; color: #999;">No data</td>
+                    <td colspan="7" style="text-align: center; color: #999;">No data</td>
                 </tr>
 """
                 continue
@@ -435,31 +492,16 @@ def generate_html_report():
             ret = compute_returns(s, end_date, diff_mode)
             current_val = s.iloc[-1]
             
-            # Generate mini charts
-            recent_data = s.last('2Y')  # Last 2 years for sparkline
-            trend_chart = create_mini_chart(recent_data, name, False)
-            norm_chart = create_mini_chart(recent_data, name, True)
-            
-            # Format values - exactly like the PDF
+            # Format values
             def format_val(val, is_diff=False):
                 if pd.isna(val):
                     return ""
-                if is_diff:
-                    # For yields/spreads
-                    if val > 0:
-                        return f'<span class="positive">{val:.2f}</span>'
-                    elif val < 0:
-                        return f'<span class="negative">{val:.2f}</span>'
-                    else:
-                        return f'{val:.2f}'
+                if val > 0:
+                    return f'<span class="positive">{val:.2f}</span>'
+                elif val < 0:
+                    return f'<span class="negative">{val:.2f}</span>'
                 else:
-                    # For returns (percentages)
-                    if val > 0:
-                        return f'<span class="positive">{val:.2f}</span>'
-                    elif val < 0:
-                        return f'<span class="negative">{val:.2f}</span>'
-                    else:
-                        return f'{val:.2f}'
+                    return f'{val:.2f}'
             
             html += f"""
                 <tr>
@@ -471,14 +513,43 @@ def generate_html_report():
                     <td>{format_val(ret['1Y'], diff_mode)}</td>
                     <td>{format_val(ret['3Y'], diff_mode)}</td>
                     <td>{format_val(ret['5Y'], diff_mode)}</td>
-                    <td class="chart-cell">{"<img src='" + trend_chart + "' class='mini-chart' alt='trend'>" if trend_chart else ""}</td>
-                    <td class="chart-cell">{"<img src='" + norm_chart + "' class='mini-chart' alt='normalized'>" if norm_chart else ""}</td>
                 </tr>
 """
         
         html += """
             </tbody>
         </table>
+"""
+        
+        # Second pass: generate charts grid
+        html += """
+        <div class="charts-container">
+"""
+        
+        for ident, name in items.items():
+            s = data.get(ident, pd.Series(dtype=float))
+            
+            if not s.empty:
+                code = ident.split(":")[1]
+                is_yield = code in YIELD_OR_SPREAD
+                
+                # Generate both charts
+                level_chart = create_chart(s, name, False, is_yield)
+                norm_chart = create_chart(s, name, True, is_yield)
+                
+                html += f"""
+            <div class="chart-pair">
+                <div class="chart-wrapper">
+                    <img src="{norm_chart}" alt="{name} Normalized">
+                </div>
+                <div class="chart-wrapper">
+                    <img src="{level_chart}" alt="{name} Level">
+                </div>
+            </div>
+"""
+        
+        html += """
+        </div>
     </div>
 """
     
@@ -506,13 +577,6 @@ def generate_html_report():
                 location.reload();
             }
         }, 1000);
-        
-        // Highlight rows on hover
-        document.querySelectorAll('tr').forEach(row => {
-            row.addEventListener('mouseenter', function() {
-                this.style.transition = 'background-color 0.2s';
-            });
-        });
     </script>
 </body>
 </html>
