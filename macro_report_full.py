@@ -20,7 +20,7 @@ OUT_XLSX = "macro_tracker.xlsx"
 
 # Treat these as point changes (not percent)
 YIELD_OR_SPREAD = {
-    "DFF","FEDFUNDS","TB3MS","DGS2","DGS5","DGS10","DGS30",
+    "DFF","FEDFUNDS","TB3MS","DGS3MO","DGS2","DGS5","DGS10","DGS30",
     "GS2","GS5","GS10","GS30",
     "AAA","BAA","BAMLH0A0HYM2","BAMLC0A0CMEY","BAMLC0A4CBBBEY",
     "MORTGAGE30US"
@@ -32,9 +32,9 @@ SECTIONS: Tuple[Tuple[str, Dict[str,str]], ...] = (
         "FRED:SP500": "S&P 500",
         "FRED:DJIA": "Dow Jones",
         "FRED:NASDAQCOM": "NASDAQ Composite",
-        "FRED:RU2000PR": "Russell 2000",
+        "STQ:IWM": "Russell 2000 (IWM)",
         "STQ:SPY": "SPY ETF",
-        "STQ:IWM": "Russell 2000 ETF",
+        "STQ:QQQ": "Nasdaq 100 (QQQ)",
     }),
     ("Sectors (SPDR ETFs)", {
         "STQ:XLB":"Materials","STQ:XLE":"Energy","STQ:XLF":"Financials",
