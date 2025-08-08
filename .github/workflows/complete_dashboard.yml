@@ -1,0 +1,84 @@
+name: Complete Dashboard Update
+
+on:
+  schedule:
+    # Run at key times when FRED updates (all times UTC)
+    - cron: "0 14 * * 1-5"  # 9 AM ET
+    - cron: "0 15 * * 1-5"  # 10 AM ET  
+    - cron: "0 17 * * 1-5"  # 12 PM ET
+    - cron: "0 20 * * 1-5"  # 3 PM ET
+    - cron: "0 21 * * 1-5"  # 4 PM ET
+    
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-dashboard:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Generate PDF and Excel reports
+      run: |
+        echo "📊 Generating PDF and Excel reports..."
+        python macro_report_simple.py
+        
+    - name: Generate HTML dashboard
+      run: |
+        echo "🌐 Generating HTML dashboard..."
+        python generate_html.py
+    
+    - name: Check for changes
+      id: verify
+      run: |
+        if git diff --quiet index.html macro_monitor.pdf macro_tracker.xlsx data.json 2>/dev/null; then
+          echo "changed=false" >> $GITHUB_OUTPUT
+          echo "No data updates detected"
+        else
+          echo "changed=true" >> $GITHUB_OUTPUT
+          echo "New data detected - will commit"
+        fi
+    
+    - name: Commit and push if changed
+      if: steps.verify.outputs.changed == 'true'
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        
+        # Create informative commit message
+        TIMESTAMP=$(TZ=America/New_York date +'%Y-%m-%d %I:%M %p ET')
+        
+        git pull origin main --rebase
+        git add index.html macro_monitor.pdf macro_tracker.xlsx data.json
+        git commit -m "📊 Dashboard update: ${TIMESTAMP}" -m "Auto-generated market data update"
+        git push origin main
+        
+        echo "✅ Dashboard updated at ${TIMESTAMP}"
+    
+    - name: Summary
+      if: always()
+      run: |
+        echo "## 📊 Dashboard Update Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Time**: $(TZ=America/New_York date +'%Y-%m-%d %I:%M %p ET')" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ${{ steps.verify.outputs.changed == 'true' && '✅ Updated' || '⏸️ No changes' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Files Generated**:" >> $GITHUB_STEP_SUMMARY
+        echo "  - 📄 macro_monitor.pdf" >> $GITHUB_STEP_SUMMARY
+        echo "  - 📊 macro_tracker.xlsx" >> $GITHUB_STEP_SUMMARY
+        echo "  - 🌐 index.html" >> $GITHUB_STEP_SUMMARY
+        echo "  - 📋 data.json" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🔗 [View Live Dashboard](https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/)" >> $GITHUB_STEP_SUMMARY
