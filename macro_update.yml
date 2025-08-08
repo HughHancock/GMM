@@ -1,0 +1,39 @@
+name: Update Macro Monitor
+
+on:
+  schedule:
+    # Run the workflow every 10 minutes.  The report script itself checks
+    # whether the current time falls within market hours and will skip
+    # generation when the markets are closed.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas pandas_datareader matplotlib
+      - name: Generate macro report
+        run: |
+          python macro_update_scheduler.py
+      - name: Commit and push updated reports
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add macro_monitor_full.pdf global_macro_tracker_full.xlsx || true
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Automated report update"
+            git push
+          fi
