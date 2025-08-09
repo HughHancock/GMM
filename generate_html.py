@@ -6,7 +6,6 @@ import json
 import base64
 from io import BytesIO
 from datetime import datetime, timedelta
-import pytz
 
 import numpy as np
 import pandas as pd
@@ -14,9 +13,15 @@ import matplotlib.pyplot as plt
 from pandas_datareader import data as web
 
 # Configuration
-ET = pytz.timezone('US/Eastern')
-END = datetime.now(ET)
-START = datetime(2018, 1, 1, tzinfo=ET)
+# Use naive datetime for data fetching (pandas_datareader requirement)
+END = datetime.now()
+START = datetime(2018, 1, 1)
+
+# Calculate ET time for display only
+utc_offset = -5  # EST
+if 3 <= END.month <= 11:  # Rough DST calculation (March-November)
+    utc_offset = -4  # EDT
+END_ET = END + timedelta(hours=utc_offset)
 
 OUT_HTML = "index.html"
 OUT_JSON = "data.json"
