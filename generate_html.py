@@ -449,7 +449,7 @@ def generate_html_report():
     
     <div class="header">
         <h1>MACRO MONITOR</h1>
-        <div class="timestamp">Data as of: """ + END.strftime('%B %d, %Y at %I:%M %p') + """ ET</div>
+        <div class="timestamp">Data as of: """ + END_ET.strftime('%B %d, %Y at %I:%M %p') + """ ET</div>
     </div>
 """
     
