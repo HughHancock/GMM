@@ -1,5 +1,5 @@
 {
-  "updated": "2026-01-02T17:10:06.994302",
+  "updated": "2026-01-02T20:26:52.333335",
   "sections": {
     "Major Indices": {
       "S&P 500": {
@@ -322,18 +322,6 @@
       }
     },
     "Interest Rates": {
-      "Fed Funds Rate": {
-        "current": 3.64,
-        "returns": {
-          "YTD": -0.69,
-          "1M": -0.25,
-          "3M": -0.44999999999999973,
-          "1Y": -0.69,
-          "3Y": -0.69,
-          "5Y": 3.5500000000000003
-        },
-        "last_date": "2025-12-30T00:00:00"
-      },
       "3-Month Treasury": {
         "current": 3.65,
         "returns": {
